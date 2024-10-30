@@ -1,6 +1,6 @@
 import express from 'express';
 import { registerUser, registerRole } from '../controllers/insert.js'; // Ajusta la ruta según tu estructura de carpetas
-import { getAllUsers, getUserById, getUserEmail, UserSession } from '../controllers/user.js'
+import { getAllUsers, getUserById, getUserEmail, UserSession, getUserRol, getUser, getUsuarios } from '../controllers/user.js'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import { SALT_ROUNT, KEY_VERIFICATION } from '../config.js'
@@ -99,26 +99,40 @@ const router = express.Router();
  */
 
 router.post('/api/usuarios', async (req, res) => {
-    const { nombre, apellido, Correo, Contrasena, estado } = req.body;
+    const { nombre, apellido, Correo, Contrasena, estado, idRol } = req.body;
     const result = registerValidations.safeParse(req.body);
+
+    // Validación de datos
     if (!result.success) {
         const errors = result.error.flatten();
-        return res.status(400).json({ error: errors.fieldErrors }); // Devolver los errores de validación
+        return res.status(400).json({ error: errors.fieldErrors });
     }
 
-    const EmailExiste = await getUserEmail(Correo);
-    if (EmailExiste) {
-        return res.status(409).json({ error: 'Correo electrónico ya está registrado.' });
-    }
+    console.group('datos', nombre, apellido, Correo, Contrasena, idRol);
+
     try {
+        // Verificar si el correo ya está registrado
+        const EmailExiste = await getUserEmail(Correo);
+        console.log('Email existe:', EmailExiste);
+
+        if (EmailExiste) {
+            return res.status(409).json({ code: 409, error: 'Correo electrónico ya está registrado.' });
+        }
+
+        // Generar el token de verificación
         const token = await jwt.sign({ nombre, apellido, Correo }, KEY_VERIFICATION, { expiresIn: '5h' });
-        const userId = await registerUser(nombre, apellido, Correo, Contrasena, estado); // Pasar el objeto completo
+
+        // Registrar al usuario
+        const userId = await registerUser(nombre, apellido, Correo, Contrasena, estado, idRol);
+        console.log('Usuario registrado:', userId);
+
         return res.status(201).json({ id: userId, token, message: 'Usuario registrado exitosamente.' });
     } catch (error) {
-        const parseError = JSON.parse(error.message);
-        return res.status(500).json({ error: parseError }); // Enviar errores de validación
+        console.error('Error registering user:', error.message);
+        return res.status(500).json({ error: error.message });
     }
 });
+
 /**
  * @swagger
  * tags:
@@ -203,6 +217,7 @@ router.post('/api/session', async (req, res) => {
     try {
         // Verificar si el correo existe en la base de datos
         const user = await getUserEmail(Correo);
+        console.log(user), "biendo";
         if (!user) {
             return res.status(401).json({ error: 'Correo electrónico no encontrado' });
         }
@@ -213,11 +228,26 @@ router.post('/api/session', async (req, res) => {
             return res.status(401).json({ error: 'Contraseña incorrecta' });
         }
 
+        const getData = await getUserRol(Correo)
+
+
+        const dataResponse = getData.map((item) => {
+            return {
+                id: item.idUsuarios,
+                nombre: item.nombre,
+                apellido: item.apellido,
+                correo: item.Correo,
+                estado: item.estado,
+                rol: item.nombreRol,
+
+            }
+        })
+
         // Generar el token JWT
         const token = await jwt.sign({ userData: user.Correo }, KEY_VERIFICATION, { expiresIn: '5h' });
 
         // Devolver la respuesta de éxito
-        return res.status(200).json({ token, message: 'Sesión iniciada correctamente.' });
+        return res.status(200).json({ token, data: dataResponse, message: 'Sesión iniciada correctamente.' });
     } catch (error) {
         console.error('Error:', error); // Mejor manejo de errores en consola
         return res.status(500).json({ error: 'Ocurrió un error en el servidor' }); // Devolver error del servidor
@@ -250,4 +280,39 @@ router.get('/api/usuarios/:id', async (req, res) => {
     }
 });
 // Exportar el router
+
+
+router.get('/api/user/roles', async (req, res) => {
+    try {
+        const roles = await getUser();
+        return res.status(200).json({ status: 'success', data: roles, message: 'roles obtenidos', code: 200 });
+    } catch (error) {
+        console.error('Error fetching roles:', error);
+        return res.status(500).json({ error: 'Error fetching roles' });
+    }
+})
+// Ruta para obtener usuarios con paginación
+// Ruta para obtener usuarios con paginación
+router.get('/get', async (req, res) => {
+    const page = Math.max(parseInt(req.query.page) || 1, 1); // Asegurarse de que sea al menos 1
+    const limit = Math.max(parseInt(req.query.limit) || 10, 1); // Asegurarse de que sea al menos 1
+
+    try {
+        const { users, total } = await getUsuarios(page, limit);
+        const totalPages = Math.ceil(total / limit); // Calcular el número total de páginas
+
+        return res.status(200).json({
+            users: users,
+            total: total,
+            totalPages: totalPages,
+            message: 'Datos obtenidos correctamente',
+            status: 'success'
+        });
+    } catch (error) {
+        console.error('Error fetching user:', error);
+        return res.status(500).json({ error: 'Error fetching user' });
+    }
+});
+
+
 export { router };

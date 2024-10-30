@@ -22,15 +22,17 @@ const getUserById = async (id) => {
     }
 };
 
-const getUserEmail = async (Correo) => {
+const getUserEmail = async (correo) => {
     try {
-        const user = await db('usuarios').where({ Correo: Correo }).first();
-        return user;
+        const user = await db("usuarios").where("Correo", correo).first() // Usa first() para obtener un único registro
+        return user; // Retorna el usuario o null si no existe
+        console.log("usuario", user)
     } catch (error) {
-        console.error('Error fetching user:', error);
-        throw new Error('Error fetching user');
+        console.error('Error fetching user by email:', error);
+        throw new Error('Error fetching user by email');
     }
-}
+};
+
 
 
 // select "nombre", "apellido", "Correo" from "usuarios"
@@ -47,4 +49,64 @@ const UserSession = async (Correo, Contrasena) => {
     }
 
 }
-export { getAllUsers, getUserById, getUserEmail, UserSession };
+
+const getUserRol = async (Correo) => {
+    try {
+        const users = await db("usuarios as u")
+            .join("rolesUser as r", "u.idRol", "r.idRol")
+            .select("*")
+            .where("u.Correo", Correo);
+
+        return users;
+
+    } catch (error) {
+        console.error('Error fetching user:', error);
+        throw new Error('Error fetching user');
+    }
+
+
+}
+
+const getUser = async () => {
+    try {
+        const roles = await db("rolesUser").select("*")
+        return roles;
+    } catch (error) {
+        console.error('Error fetching user:', error);
+        throw new Error('Error fetching user');
+    }
+}
+
+// Controlador de usuarios
+// Controlador de usuarios
+const getUsuarios = async (page, limit) => {
+    try {
+        const offset = (page - 1) * limit; // Calcular el desplazamiento
+
+        const [users, totalCount] = await Promise.all([
+            db("usuarios as u")
+                .select({
+                    idUsuarios: "u.idUsuarios",
+                    nombre: "u.nombre",
+                    apellido: "u.apellido",
+                    correo: "u.Correo",
+                    nombreRol: "r.nombreRol",
+                    estado: "u.estado",
+                })
+                .join("rolesUser as r", "u.idRol", "r.idRol")
+                .limit(limit) // Aplicar límite
+                .offset(offset), // Aplicar desplazamiento
+
+            // Contar el total de registros
+            db("usuarios as u").count('* as total').first()
+        ]);
+
+        return { users, total: totalCount.total };
+    } catch (error) {
+        console.error('Error fetching user:', error);
+        throw new Error('Error fetching user');
+    }
+};
+
+
+export { getAllUsers, getUserById, getUserEmail, UserSession, getUserRol, getUser, getUsuarios };

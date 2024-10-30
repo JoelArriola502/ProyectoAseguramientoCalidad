@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { optional, z } from 'zod';
 
 const registerValidations = z.object({
     nombre: z.string().min(2, "El nombre es obligatorio."),
@@ -11,6 +11,7 @@ const registerValidations = z.object({
         .regex(/[0-9]/, "La contraseña debe contener al menos un número.")
         .regex(/[\W_]/, "La contraseña debe contener al menos un carácter especial."),
     estado: z.string().optional(), // Este campo es opcional
+    idRol: z.number().optional(),
 });
 
 export { registerValidations };
